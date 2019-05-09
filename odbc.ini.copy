@@ -1,0 +1,6 @@
+[asterisk-connector]
+Driver = MariaDB
+Description = MariaDB connection to ‘asterisk’ database
+Server = <ip>
+Port = 3306
+Database = asterisk

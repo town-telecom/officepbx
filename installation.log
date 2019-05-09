@@ -1,0 +1,232 @@
+### PHONE SYSTEM INSTALLATION LOG: ###
+
+!!! EPEL:
+
+yum -y install epel-release
+
+###################################################################################################
+
+!!! NET-TOOLS:
+
+yum -y install net-tools
+
+###################################################################################################
+
+!!! NTP:
+
+yum -y install ntp
+systemctl enable ntp
+systemctl enable ntpd
+systemctl start ntpd
+vim /etc/ntp.conf
+systemctl restart ntpd
+systemctl status ntpd
+
+###################################################################################################
+
+!!! SNGREP:
+
+vim /etc/yum.repos.d/irontec.repo
+
+[irontec]
+name=Irontec RPMs repository
+baseurl=http://packages.irontec.com/centos/$releasever/$basearch/
+
+rpm --import http://packages.irontec.com/public.key
+
+yum install sngrep
+
+###################################################################################################
+
+!!! MARIADB:
+
+vim /etc/yum.repos.d/mariadb.repo
+
+# MariaDB 10.3 CentOS repository list - created 2019-05-07 20:19 UTC
+# http://downloads.mariadb.org/mariadb/repositories/
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.3/centos7-amd64
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+
+yum install MariaDB-server MariaDB-client
+systemctl enable mariadb
+systemctl start mariadb
+mysql_secure_installation
+mysql -u root -p
+...
+GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '<password>';
+CREATE DATABASE asterisk;
+GRANT ALL ON asterisk.* TO 'asterisk'@'%' IDENTIFIED BY '<password>';
+FLUSH PRIVILEGES;
+USE asterisk;
+
+SOURCE cdr.sql
+...
+CREATE TABLE IF NOT EXISTS cdr (
+  calldate datetime NOT NULL default '0000-00-00 00:00:00',
+  clid varchar(80) NOT NULL default '',
+  src varchar(80) NOT NULL default '',
+  dst varchar(80) NOT NULL default '',
+  dcontext varchar(80) NOT NULL default '',
+  channel varchar(80) NOT NULL default '',
+  dstchannel varchar(80) NOT NULL default '',
+  lastapp varchar(80) NOT NULL default '',
+  lastdata varchar(80) NOT NULL default '',
+  duration int(11) NOT NULL default '0',
+  billsec int(11) NOT NULL default '0',
+  disposition varchar(45) NOT NULL default '',
+  amaflags int(11) NOT NULL default '0',
+  accountcode varchar(20) NOT NULL default '',
+  uniqueid varchar(32) NOT NULL default '',
+  userfield varchar(255) NOT NULL default '',
+  peeraccount varchar(20) NOT NULL default '',
+  linkedid varchar(32) NOT NULL default '',
+  sequence int(11) NOT NULL default '0'
+)  ENGINE=InnoDB;
+
+SOURCE cel.sql
+...
+CREATE TABLE IF NOT EXISTS cel (
+  id bigint NOT NULL AUTO_INCREMENT,
+  eventtype varchar (30) NOT NULL,
+  eventtime timestamp NOT NULL,
+  userdeftype varchar(255) NOT NULL,
+  cid_name varchar (80) NOT NULL,
+  cid_num varchar (80) NOT NULL,
+  cid_ani varchar (80) NOT NULL,
+  cid_rdnis varchar (80) NOT NULL,
+  cid_dnid varchar (80) NOT NULL,
+  exten varchar (80) NOT NULL,
+  context varchar (80) NOT NULL,
+  channame varchar (80) NOT NULL,
+  appname varchar (80) NOT NULL,
+  appdata varchar (80) NOT NULL,
+  amaflags int NOT NULL,
+  accountcode varchar (20) NOT NULL,
+  peeraccount varchar (20) NOT NULL,
+  uniqueid varchar (150) NOT NULL,
+  linkedid varchar (150) NOT NULL,
+  userfield varchar (255) NOT NULL,
+  peer varchar (80) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+SOURCE queue_log
+...
+CREATE TABLE IF NOT EXISTS queue_log (
+  id bigint(255) unsigned NOT NULL AUTO_INCREMENT,
+  time varchar(26),
+  callid varchar(40),
+  queuename varchar(20),
+  agent varchar(20),
+  event varchar(20),
+  data varchar(100),
+  data1 varchar(40),
+  data2 varchar(40),
+  data3 varchar(40),
+  data4 varchar(40),
+  data5 varchar(40),
+  created timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY queue (queuename),
+  KEY event (event)
+) ENGINE=InnoDB;
+
+\q
+
+vim /etc/my.cnf.d/server.cnf
+...
+bind-address = 0.0.0.0
+
+systemctl restart mariadb
+systemctl status mariadb
+
+###################################################################################################
+
+!!! ASTERISK:
+
+yum -y install git
+git clone -b 16 http://gerrit.asterisk.org/asterisk asterisk-16
+cd asterisk-16/
+./contrib/scripts/install_prereq install
+./contrib/scripts/get_ilbc_source.sh
+./contrib/scripts/get_mp3_source.sh
+./contrib/scripts/get_swagger_ui.sh
+cd /usr/src
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python get-pip.py
+pip -V
+cd asterisk-16/contrib/ast-db-manage/
+pip install alembic
+cp config.ini.sample config.ini
+vim config.ini
+...
+sqlalchemy.url = mysql://root:<password>@<ip>/asterisk
+
+yum install MariaDB-client
+yum install python-dateutil
+yum install MySQL-python
+alembic -c config.ini upgrade head
+cd ..
+cd ..
+./configure --with-jansson-bundled
+make menuselect
+make
+make install
+make samples
+make config
+reboot
+cd /etc/asterisk
+for FILE in *; do cp ${FILE} ${FILE}.backup; done
+cd /usr/src
+mkdir odbc_package
+cd odbc_package/
+wget https://downloads.mariadb.com/Connectors/odbc/connector-odbc-3.0.9/mariadb-connector-odbc-3.0.9-ga-rhel7-x86_64.tar.gz
+tar -zxvf mariadb-connector-odbc-3.0.9-ga-rhel7-x86_64.tar.gz
+install lib64/libmaodbc.so /usr/lib64
+vim /etc/odbcinst.ini
+...
+[MariaDB]
+Description = ODBC for MySQL
+Driver = /usr/lib64/libmaodbc.so
+Setup = /usr/lib64/libodbcmyS.so
+UsageCount = 2
+
+vim /etc/odbc.ini
+...
+[asterisk-connector]
+Driver = MariaDB
+Description = MariaDB connection to ‘asterisk’ database
+Server = <ip>
+Port = 3306
+Database = asterisk
+
+mysql -h <ip> -u root -p
+...
+Enter password:
+
+odbcinst -q -d
+...
+[MariaDB]
+
+echo "select 1" | isql -v asterisk-connector root '<password>'
+echo "select 1" | isql -v asterisk-connector asterisk '<password>'
+...
++---------------------------------------+
+| Connected!                            |
+|                                       |
+| sql-statement                         |
+| help [tablename]                      |
+| quit                                  |
+|                                       |
++---------------------------------------+
+SQL> select 1
++------------+
+| 1          |
++------------+
+| 1          |
++------------+
+SQLRowCount returns 1
+1 rows fetched

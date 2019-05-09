@@ -1,0 +1,5 @@
+[MariaDB]
+Description = ODBC for MySQL
+Driver = /usr/lib64/libmaodbc.so
+Setup = /usr/lib64/libodbcmyS.so
+UsageCount = 2
