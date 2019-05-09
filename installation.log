@@ -56,9 +56,9 @@ systemctl start mariadb
 mysql_secure_installation
 mysql -u root -p
 ...
-GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '<password>';
+GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '!!dfb@dm1n';
 CREATE DATABASE asterisk;
-GRANT ALL ON asterisk.* TO 'asterisk'@'%' IDENTIFIED BY '<password>';
+GRANT ALL ON asterisk.* TO 'asterisk'@'%' IDENTIFIED BY '@t3r15k';
 FLUSH PRIVILEGES;
 USE asterisk;
 
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS cel (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 
-SOURCE queue_log
+SOURCE queue_log.sql
 ...
 CREATE TABLE IF NOT EXISTS queue_log (
   id bigint(255) unsigned NOT NULL AUTO_INCREMENT,
@@ -132,7 +132,37 @@ CREATE TABLE IF NOT EXISTS queue_log (
   PRIMARY KEY (id),
   KEY queue (queuename),
   KEY event (event)
-) ENGINE=InnoDB;
+);
+
+SOURCE pbx.sql
+...
+DROP TABLE IF EXISTS pbx,
+CREATE TABLE pbx (
+  id bigint NOT NULL AUTO_INCREMENT,
+  ext varchar(6) NOT NULL,
+  first_name varchar(20),
+  last_name varchar(20),
+  caller_id varchar(40),
+  email varchar(60),
+  phone_number varchar(20),
+  mobile_number varchar(20),
+  direct_number varchar(10),
+  ip varchar(40),
+  user_agent varchar(100),
+  pin varchar(70) DEFAULT '123456',
+  created timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_logout timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  logged_in boolean NOT NULL DEFAULT '0',
+  active boolean NOT NULL DEFAULT '0',
+  admin boolean NOT NULL DEFAULT '0',
+  user varchar(40),
+  password varchar(70),
+  company_id varchar(20),
+  notes varchar(150),
+  PRIMARY KEY (ext),
+  CONSTRAINT pbx_unique_values UNIQUE (id, ext, direct_number)
+);
 
 \q
 
@@ -163,7 +193,7 @@ pip install alembic
 cp config.ini.sample config.ini
 vim config.ini
 ...
-sqlalchemy.url = mysql://root:<password>@<ip>/asterisk
+sqlalchemy.url = mysql://root:lsdfb@dm1n@192.168.10.122/asterisk
 
 yum install MariaDB-client
 yum install python-dateutil
@@ -199,11 +229,11 @@ vim /etc/odbc.ini
 [asterisk-connector]
 Driver = MariaDB
 Description = MariaDB connection to ‘asterisk’ database
-Server = <ip>
+Server = 192.168.10.122
 Port = 3306
 Database = asterisk
 
-mysql -h <ip> -u root -p
+mysql -h 192.168.10.122 -u root -p
 ...
 Enter password:
 
@@ -211,8 +241,8 @@ odbcinst -q -d
 ...
 [MariaDB]
 
-echo "select 1" | isql -v asterisk-connector root '<password>'
-echo "select 1" | isql -v asterisk-connector asterisk '<password>'
+echo "select 1" | isql -v asterisk-connector root '!!dfb@dm1n'
+echo "select 1" | isql -v asterisk-connector asterisk '@t3r15k'
 ...
 +---------------------------------------+
 | Connected!                            |
