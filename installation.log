@@ -64,26 +64,28 @@ USE asterisk;
 
 SOURCE cdr.sql
 ...
+DROP TABLE IF EXISTS cdr;
 CREATE TABLE IF NOT EXISTS cdr (
-  calldate datetime NOT NULL default '0000-00-00 00:00:00',
-  clid varchar(80) NOT NULL default '',
-  src varchar(80) NOT NULL default '',
-  dst varchar(80) NOT NULL default '',
-  dcontext varchar(80) NOT NULL default '',
-  channel varchar(80) NOT NULL default '',
-  dstchannel varchar(80) NOT NULL default '',
-  lastapp varchar(80) NOT NULL default '',
-  lastdata varchar(80) NOT NULL default '',
-  duration int(11) NOT NULL default '0',
-  billsec int(11) NOT NULL default '0',
-  disposition varchar(45) NOT NULL default '',
-  amaflags int(11) NOT NULL default '0',
-  accountcode varchar(20) NOT NULL default '',
-  uniqueid varchar(32) NOT NULL default '',
-  userfield varchar(255) NOT NULL default '',
-  peeraccount varchar(20) NOT NULL default '',
-  linkedid varchar(32) NOT NULL default '',
-  sequence int(11) NOT NULL default '0'
+  calldate datetime NOT NULL,
+  clid varchar(80),
+  src varchar(80),
+  dst varchar(80),
+  dcontext varchar(80),
+  channel varchar(80),
+  dstchannel varchar(80),
+  lastapp varchar(80),
+  lastdata varchar(80),
+  duration int(11),
+  billsec int(11),
+  disposition varchar(45),
+  amaflags int(11),
+  accountcode varchar(20),
+  uniqueid varchar(32),
+  userfield varchar(255),
+  peeraccount varchar(20),
+  linkedid varchar(32),
+  sequence int(11),
+  callid varchar(100)
 )  ENGINE=InnoDB;
 
 SOURCE cel.sql
@@ -172,6 +174,93 @@ bind-address = 0.0.0.0
 
 systemctl restart mariadb
 systemctl status mariadb
+
+###################################################################################################
+
+!!! LUA:
+
+cd /usr/src
+git clone https://github.com/keplerproject/luasql.git luasql
+luasql/
+vim config
+...
+# Installation directories
+
+# Default prefix
+PREFIX ?= /usr
+
+# Lua version and dirs
+LUA_SYS_VER ?= 5.1
+LUA_LIBDIR ?= $(PREFIX)/lib64/lua/$(LUA_SYS_VER)
+LUA_DIR ?= $(PREFIX)/share/lua/$(LUA_SYS_VER)
+LUA_INC ?= $(PREFIX)/include/lua$(LUA_SYS_VER)
+
+# OS dependent
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin) # MacOS
+	LIB_OPTION ?= -bundle -undefined dynamic_lookup -mmacosx-version-min=10.3
+else # Linux/BSD
+	LIB_OPTION ?= -shared
+endif
+
+# driver specific params
+# - MySQL
+#DRIVER_LIBS_mysql ?= -L/usr/local/mysql/lib -lmysqlclient -lz
+#DRIVER_INCS_mysql ?= -I/usr/local/mysql/include
+DRIVER_LIBS_mysql ?= -L/usr/lib -lmysqlclient -lz
+DRIVER_INCS_mysql ?= -I/usr/include/mysql
+# - Oracle OCI8
+DRIVER_LIBS_oci8 ?= -L/home/oracle/OraHome1/lib -lz -lclntsh
+DRIVER_INCS_oci8 ?= -I/home/oracle/OraHome1/rdbms/demo \
+                    -I/home/oracle/OraHome1/rdbms/public
+# - PostgreSQL
+#DRIVER_LIBS_postgres ?= -L/usr/local/pgsql/lib -lpq
+#DRIVER_INCS_postgres ?= -I/usr/local/pgsql/include/
+DRIVER_LIBS_postgres ?= -L/usr/lib -lpq
+DRIVER_INCS_postgres ?= -I/usr/include/postgresql
+# - SQLite
+DRIVER_LIBS_sqlite ?= -lsqlite
+DRIVER_INCS_sqlite ?=
+# - SQLite3
+DRIVER_LIBS_sqlite3 ?= -L/opt/local/lib -lsqlite3
+DRIVER_INCS_sqlite3 ?= -I/opt/local/include
+# - ODBC
+DRIVER_LIBS_odbc ?= -L/usr/local/lib -lodbc
+DRIVER_INCS_odbc ?= -DUNIXODBC -I/usr/local/include
+# - Firebird
+DRIVER_LIBS_firebird ?= -L/usr/local/firebird -lfbclient
+DRIVER_INCS_firebird ?=
+
+# general compilation parameters
+WARN = -Wall -Wmissing-prototypes -Wmissing-declarations -pedantic
+INCS = -I$(LUA_INC)
+DEFS =
+CFLAGS = -O2 -std=gnu99 $(WARN) -fPIC $(DRIVER_INCS) $(INCS) \
+         -DLUASQL_VERSION_NUMBER='"$V"' $(DEFS)
+CC= gcc
+
+make odbc
+make install
+
+vim ~/lua-odbc.lua
+...
+DSN = "asterisk-connector"
+DBUSER = "user"
+DBPASSWORD = "pass"
+DBHOST = "ip"
+DBPORT = "3306"
+luasql = require "luasql.odbc"
+--
+env = luasql.odbc()
+con = env:connect(DSN, DBUSER, DBPASSWORD, DBHOST, DBPORT)
+cur = con:execute('SELECT SYSDATE();')
+print(env,con,cur)
+row = cur:fetch()
+DATE = row
+print ("El SYSDATE en la BD es => " .. DATE)
+cur:close()
+con:close()
+env:close()
 
 ###################################################################################################
 

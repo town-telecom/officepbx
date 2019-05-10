@@ -13,7 +13,7 @@ autofallthrough=yes
 
 exten => _X.,1,Hangup()
 
-;--
+
 [test]
 
 exten => _X.,1,Verbose(TESTING EXTENSION)
@@ -23,13 +23,10 @@ same => n,Verbose(ENDPOINT ${CHANNEL(endpoint)})
 ;same => n,Verbose(${CHANNEL(aor)})
 same => n,Verbose(CALL-ID ${CHANNEL(pjsip,call-id)})
 same => n,Set(IP=${CHANNEL(pjsip,target_uri)})
-;same => n,Verbose(${IP})
+same => n,Verbose(${IP})
 same => n,Set(IP=${CUT(IP,:,2)})
 same => n,Set(IP=${CUT(IP,@,2)})
-same => n,Verbose(IP ${IP})
+same => n,Verbose(${IP})
 same => n,Verbose(USER AGENT ${PJSIP_HEADER(read,User-Agent)})
 ;same => n,Verbose(${PJSIP_AOR(${CHANNEL(endpoint)},contact)})
 same => n,Hangup()
---;
-
-
